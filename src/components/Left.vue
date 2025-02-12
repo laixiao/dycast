@@ -110,6 +110,10 @@ const isDarkTheme = inject<Ref<boolean>>('isDarkTheme');
 // 在 script setup 中添加新的 ref
 const isConnecting = ref(false);
 
+// 在 ref 声明区域添加重试次数计数器
+const retryCount = ref(0);
+const MAX_RETRIES = 2; // 最大重试次数
+
 onMounted(() => {
   messListDom = document.getElementById('mess-list');
 });
@@ -150,14 +154,16 @@ function gotoConnect() {
           roomTitle.value = res.roomTitle;
           if (!res.roomId || !res.uniqueId) {
             // 房间ID和uniqueID获取失败
-            connectCode.value = 400;
+            handleConnectionError();
           } else {
+            // 连接成功，重置重试计数
+            retryCount.value = 0;
             connection(res.roomId, res.uniqueId);
           }
         })
         .catch((err: any) => {
           console.error(err);
-          connectCode.value = 400;
+          handleConnectionError();
         })
         .finally(() => {
           // 重置连接状态
@@ -254,6 +260,21 @@ function renewPos() {
 function relayMess(data: Mess) {
   if (!data.type) return;
   relaySocket && relaySocket?.send(JSON.stringify(data));
+}
+
+// 添加处理连接错误的函数
+function handleConnectionError() {
+  if (retryCount.value < MAX_RETRIES) {
+    retryCount.value++;
+    console.log(`连接失败，正在进行第 ${retryCount.value} 次重试...`);
+    setTimeout(() => {
+      gotoConnect();
+    }, 2000); // 2秒后重试
+  } else {
+    // 重试次数用完，显示失败状态
+    connectCode.value = 400;
+    retryCount.value = 0; // 重置重试计数，为下次连接做准备
+  }
 }
 </script>
 
