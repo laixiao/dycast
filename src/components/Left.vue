@@ -9,7 +9,11 @@
         }">
         <div class="dy-room-tag">房间号</div>
         <input v-model="roomNum" type="text" class="dy-room-input" placeholder="请输入12位房间号" />
-        <button class="dy-room-btn" @click="gotoConnect">连接</button>
+        <button 
+          class="dy-room-btn" 
+          @click="gotoConnect"
+          :disabled="isConnecting"
+        >{{ isConnecting ? '连接中...' : '连接' }}</button>
       </div>
       <div class="dy-title">转发信息</div>
       <div class="dy-room-box">
@@ -103,6 +107,9 @@ let messListDom: HTMLElement | null;
 // 添加主题注入
 const isDarkTheme = inject<Ref<boolean>>('isDarkTheme');
 
+// 在 script setup 中添加新的 ref
+const isConnecting = ref(false);
+
 onMounted(() => {
   messListDom = document.getElementById('mess-list');
 });
@@ -111,6 +118,9 @@ onMounted(() => {
  * 连接直播间
  */
 function gotoConnect() {
+  // 如果正在连接中，直接返回
+  if (isConnecting.value) return;
+  
   if (!roomNum.value) {
     rnFlag.value = true;
     return;
@@ -120,6 +130,9 @@ function gotoConnect() {
     return;
   }
   rnFlag.value = false;
+  
+  // 设置连接状态
+  isConnecting.value = true;
 
   // 创建一个隐藏的 iframe
   const iframe = document.createElement('iframe');
@@ -145,6 +158,10 @@ function gotoConnect() {
         .catch((err: any) => {
           console.error(err);
           connectCode.value = 400;
+        })
+        .finally(() => {
+          // 重置连接状态
+          isConnecting.value = false;
         });
   }, 2000);
 }
@@ -317,6 +334,10 @@ function relayMess(data: Mess) {
       padding: 0 24px;
       background-color: v-bind('isDarkTheme ? "#333" : "#a9b7c2"');
       color: v-bind('isDarkTheme ? "#fff" : "#000"');
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
     }
   }
   .dy-room-info {
