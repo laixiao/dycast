@@ -56,6 +56,9 @@ const chatList = inject<Mess[]>('chatList');
 const isStopScroll = inject<Ref<boolean>>('isStopScroll');
 const setIsStopScroll = inject<(value: boolean) => void>('setIsStopScroll');
 
+// 添加主题注入
+const isDarkTheme = inject<Ref<boolean>>('isDarkTheme');
+
 /**
  * 获取信息类型
  * @param type
@@ -108,10 +111,10 @@ function onStopScrollOfList() {
     display: flex;
     align-items: center;
     flex-direction: column;
-    background-color: #0c0c0c;
+    background-color: v-bind('isDarkTheme ? "#1a1a1a" : "#0c0c0c"');
     overflow: hidden;
-    box-shadow: 5px 5px 8px 0px rgba(0, 0, 0, 0.3);
-    border: 1px solid #1e2732;
+    box-shadow: v-bind('isDarkTheme ? "5px 5px 8px 0px rgba(0, 0, 0, 0.5)" : "5px 5px 8px 0px rgba(0, 0, 0, 0.3)"');
+    border: 1px solid v-bind('isDarkTheme ? "#333" : "#1e2732"');
   }
 }
 .mess-h {
@@ -122,9 +125,9 @@ function onStopScrollOfList() {
   flex-shrink: 0;
   width: 100%;
   height: 36px;
-  background-color: #fff;
+  background-color: v-bind('isDarkTheme ? "#333" : "#fff"');
   position: relative;
-  box-shadow: 0px 1px 0px 0px #e6e6e6, 0 3px 6px 0px rgba(255, 255, 255, 0.3);
+  box-shadow: v-bind('isDarkTheme ? "none" : "0px 1px 0px 0px #e6e6e6, 0 3px 6px 0px rgba(255, 255, 255, 0.3)"');
   .mess-h-tool {
     display: flex;
     position: absolute;
@@ -137,7 +140,7 @@ function onStopScrollOfList() {
       width: 18px;
       height: 18px;
       border-radius: 50%;
-      border: 1px solid #ccc;
+      border: 1px solid v-bind('isDarkTheme ? "#666" : "#ccc"');
       margin: 0 5px;
     }
     .mess-h-r {
@@ -151,7 +154,7 @@ function onStopScrollOfList() {
     }
   }
   .mess-h-t {
-    color: #7a7b78;
+    color: v-bind('isDarkTheme ? "#fff" : "#7a7b78"');
     font-weight: bold;
   }
 }
@@ -174,8 +177,8 @@ function onStopScrollOfList() {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #ccc; // 滑块颜色
-    border-radius: 2.5px; // 滑块圆角
+    background: v-bind('isDarkTheme ? "#666" : "#ccc"');
+    border-radius: 2.5px;
   }
   .mess-l-item {
     width: 100%;
@@ -185,7 +188,7 @@ function onStopScrollOfList() {
       flex-shrink: 0;
       margin-right: 8px;
       font-size: 18px;
-      color: #b148c6;
+      color: v-bind('isDarkTheme ? "#d48fd9" : "#b148c6"');
       line-height: 32px;
       &::before {
         content: '[';
@@ -203,10 +206,10 @@ function onStopScrollOfList() {
       font-size: 16px;
       line-height: 32px;
       .text {
-        color: #fff;
+        color: v-bind('isDarkTheme ? "#ccc" : "#fff"');
       }
       .in {
-        color: #e5e517;
+        color: v-bind('isDarkTheme ? "#ffff4d" : "#e5e517"');
       }
       .gift {
         display: flex;
@@ -217,10 +220,10 @@ function onStopScrollOfList() {
           margin-right: 5px;
         }
         .desc {
-          color: #e5e517;
+          color: v-bind('isDarkTheme ? "#ffff4d" : "#e5e517"');
         }
         .num {
-          color: #eba825;
+          color: v-bind('isDarkTheme ? "#ffc247" : "#eba825"');
           font-size: 16px;
           font-weight: bold;
         }
@@ -230,7 +233,7 @@ function onStopScrollOfList() {
       font-weight: bold;
       margin: 5px 8px;
       content: '$';
-      color: #14a800;
+      color: v-bind('isDarkTheme ? "#1adb00" : "#14a800"');
       font-size: 18px;
     }
     & + .mess-l-item {
@@ -248,7 +251,7 @@ function onStopScrollOfList() {
   position: absolute;
   bottom: 18px;
   right: 32px;
-  color: #b148c6;
+  color: v-bind('isDarkTheme ? "#d48fd9" : "#b148c6"');
   &:hover {
     .icon {
       animation: shake-tb 1.5s ease-in-out infinite;

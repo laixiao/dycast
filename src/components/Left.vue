@@ -100,6 +100,9 @@ let relaySocket: any;
 // 消息列表DOM
 let messListDom: HTMLElement | null;
 
+// 添加主题注入
+const isDarkTheme = inject<Ref<boolean>>('isDarkTheme');
+
 onMounted(() => {
   messListDom = document.getElementById('mess-list');
 });
@@ -117,13 +120,19 @@ function gotoConnect() {
     return;
   }
   rnFlag.value = false;
-  let n = window.open(`https://live.douyin.com/${roomNum.value}`, '_blank');
+
+  // 创建一个隐藏的 iframe
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = `https://live.douyin.com/${roomNum.value}`;
+  document.body.appendChild(iframe);
+
+  // 2秒后移除iframe并获取房间信息
   setTimeout(() => {
-    n?.close();
+    document.body.removeChild(iframe);
     roomNum.value &&
       getRoomInfoApi(roomNum.value)
         .then((res: any) => {
-          // console.log(res);
           roomAvatar.value = res.avatar;
           roomTitle.value = res.roomTitle;
           if (!res.roomId || !res.uniqueId) {
@@ -135,6 +144,7 @@ function gotoConnect() {
         })
         .catch((err: any) => {
           console.error(err);
+          connectCode.value = 400;
         });
   }, 2000);
 }
@@ -243,8 +253,9 @@ function relayMess(data: Mess) {
     font-size: 18px;
     font-weight: bold;
     padding: 8px 5px;
-    border-bottom: 1px solid #ccc;
+    border-bottom: 1px solid v-bind('isDarkTheme ? "#333" : "#ccc"');
     margin-bottom: 8px;
+    color: v-bind('isDarkTheme ? "#fff" : "#000"');
     .state {
       position: absolute;
       right: 12px;
@@ -264,13 +275,14 @@ function relayMess(data: Mess) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border: 1px solid #9aa7b1;
+    border: 1px solid v-bind('isDarkTheme ? "#333" : "#9aa7b1"');
     border-radius: 5px;
     overflow: hidden;
     box-sizing: border-box;
     margin: 12px 8px;
     margin-bottom: 24px;
     flex-shrink: 0;
+    background-color: v-bind('isDarkTheme ? "#1a1a1a" : "#fff"');
     &.error {
       border-color: #fa5232;
     }
@@ -279,17 +291,19 @@ function relayMess(data: Mess) {
       text-align: center;
       padding: 0 12px;
       box-sizing: border-box;
+      color: v-bind('isDarkTheme ? "#fff" : "#000"');
     }
     .dy-room-input {
       min-width: 114px;
       height: 100%;
       font-size: 14px;
-      color: #5c4f55;
+      color: v-bind('isDarkTheme ? "#fff" : "#5c4f55"');
       flex-grow: 1;
       height: 100%;
       outline: none;
       border: none;
       padding: 0;
+      background-color: transparent;
     }
     .dy-room-btn {
       cursor: pointer;
@@ -301,7 +315,8 @@ function relayMess(data: Mess) {
       padding: 0;
       box-sizing: border-box;
       padding: 0 24px;
-      background-color: #a9b7c2;
+      background-color: v-bind('isDarkTheme ? "#333" : "#a9b7c2"');
+      color: v-bind('isDarkTheme ? "#fff" : "#000"');
     }
   }
   .dy-room-info {
@@ -317,13 +332,13 @@ function relayMess(data: Mess) {
         border-radius: 50%;
         width: 64px;
         height: 64px;
-        border: 1px solid #ccc;
+        border: 1px solid v-bind('isDarkTheme ? "#333" : "#ccc"');
       }
       span {
         margin-left: 12px;
         font-size: 16px;
         font-weight: bold;
-        color: #8b968d;
+        color: v-bind('isDarkTheme ? "#ccc" : "#8b968d"');
       }
     }
     .info-item {
@@ -334,10 +349,52 @@ function relayMess(data: Mess) {
       }
       .tit {
         margin-right: 12px;
-        color: #333631;
+        color: v-bind('isDarkTheme ? "#ccc" : "#333631"');
       }
       .text {
-        color: #9e9478;
+        color: v-bind('isDarkTheme ? "#999" : "#9e9478"');
+      }
+    }
+  }
+  
+  // 添加主题切换过渡效果
+  transition: all 0.3s ease;
+  
+  .dy-title {
+    transition: all 0.3s ease;
+  }
+  
+  .dy-room-box {
+    transition: all 0.3s ease;
+    
+    .dy-room-input {
+      transition: all 0.3s ease;
+    }
+    
+    .dy-room-btn {
+      transition: all 0.3s ease;
+      
+      &:hover {
+        background-color: v-bind('isDarkTheme ? "#444" : "#bac5cd"');
+      }
+    }
+  }
+  
+  .dy-room-info {
+    transition: all 0.3s ease;
+    
+    .title-box {
+      img {
+        transition: all 0.3s ease;
+      }
+      span {
+        transition: all 0.3s ease;
+      }
+    }
+    
+    .info-item {
+      .tit, .text {
+        transition: all 0.3s ease;
       }
     }
   }

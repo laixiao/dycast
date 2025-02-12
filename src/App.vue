@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import Left from './components/Left.vue';
 import Right from './components/Right.vue';
-import { ref, reactive, provide, readonly } from 'vue';
+import { ref, reactive, provide, readonly, onMounted } from 'vue';
 
 /**
  * 输出标签
@@ -54,20 +54,41 @@ const rankList = reactive<RankItem[]>([]);
 // 是否停止自动滚动
 const isStopScroll = ref(false);
 
+// 添加主题相关代码
+const isDarkTheme = ref(window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+// 监听系统主题变化
+onMounted(() => {
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  mediaQuery.addEventListener('change', e => {
+    isDarkTheme.value = e.matches;
+  });
+});
+
 provide('chatList', chatList);
 provide('rankList', rankList);
 provide('isStopScroll', readonly(isStopScroll));
 provide('setIsStopScroll', (value: boolean) => {
   isStopScroll.value = value;
 });
+
+// 提供主题状态给子组件
+provide('isDarkTheme', readonly(isDarkTheme));
 </script>
 
 <style lang="less">
+// 添加全局主题样式
+:root {
+  background-color: v-bind('isDarkTheme ? "#121212" : "#fff"');
+  color: v-bind('isDarkTheme ? "#fff" : "#000"');
+}
+
 .main {
   width: 100vw;
   height: 100vh;
   display: flex;
   justify-content: space-between;
+  background-color: v-bind('isDarkTheme ? "#121212" : "#fff"');
   .left {
     width: 45%;
   }

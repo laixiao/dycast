@@ -13,3 +13,16 @@ body {
   background-color: #5dffff;
   color: #fff;
 }
+
+/* 添加暗色主题下的选中样式 */
+@media (prefers-color-scheme: dark) {
+  ::selection {
+    background-color: #0099ff;
+    color: #fff;
+  }
+
+  ::-moz-selection {
+    background-color: #0099ff;
+    color: #fff;
+  }
+}
