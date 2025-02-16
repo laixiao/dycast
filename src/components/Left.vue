@@ -1,5 +1,8 @@
 <template>
   <div class="l-box">
+    <div class="retry-message" v-if="showRetryMessage">
+      {{ retryMessage }}
+    </div>
     <div class="dy-form">
       <div class="dy-title">房间信息</div>
       <div
@@ -146,6 +149,10 @@ const isRelaying = ref(false);
 const MAX_RELAY_RETRIES = 3; // 最大重连次数
 const RELAY_RETRY_DELAY = 3000; // 重连延迟时间（毫秒）
 const relayRetryCount = ref(0); // 重连计数器
+
+// 在 ref 声明区域添加新的状态
+const retryMessage = ref('');
+const showRetryMessage = ref(false);
 
 // 修改获取 URL 参数的函数，添加 roomId 参数的获取
 function getUrlParam(name: string): string | null {
@@ -367,30 +374,33 @@ function relayMess(data: Mess) {
   }
 }
 
-// 添加处理连接错误的函数
+// 修改 handleConnectionError 函数
 function handleConnectionError() {
   if (retryCount.value < MAX_RETRIES) {
     retryCount.value++;
-    console.log(`连接失败，正在进行第 ${retryCount.value} 次重试...`);
+    showRetryMessage.value = true;
+    retryMessage.value = `连接失败，正在进行第 ${retryCount.value} 次重试...`;
     setTimeout(() => {
       gotoConnect();
-    }, 2000); // 2秒后重试
+    }, 2000);
   } else {
-    // 重试次数用完，显示失败状态
     connectCode.value = 400;
-    retryCount.value = 0; // 重置重试计数，为下次连接做准备
+    retryCount.value = 0;
+    showRetryMessage.value = true;
+    retryMessage.value = '连接失败，请检查房间号是否正确后重试';
+    setTimeout(() => {
+      showRetryMessage.value = false;
+    }, 3000);
   }
 }
 
-/**
- * 处理转发错误和重连
- */
+// 修改 handleRelayError 函数
 function handleRelayError() {
   if (relayRetryCount.value < MAX_RELAY_RETRIES) {
     relayRetryCount.value++;
-    console.log(`转发连接断开，${RELAY_RETRY_DELAY/1000}秒后进行第 ${relayRetryCount.value} 次重试...`);
+    showRetryMessage.value = true;
+    retryMessage.value = `转发连接断开，${RELAY_RETRY_DELAY/1000}秒后进行第 ${relayRetryCount.value} 次重试...`;
     
-    // 确保旧的连接被清理
     if (relaySocket) {
       try {
         relaySocket.close();
@@ -400,15 +410,18 @@ function handleRelayError() {
       relaySocket = null;
     }
     
-    // 延迟重连
     setTimeout(() => {
-      // 确保在重连时仍处于应该转发的状态
       if (isRelaying.value && connectCode.value === 200) {
         relay();
       }
     }, RELAY_RETRY_DELAY);
   } else {
     console.error('转发重连次数已达上限，停止重连');
+    showRetryMessage.value = true;
+    retryMessage.value = '转发连接失败，请检查地址是否正确后重试';
+    setTimeout(() => {
+      showRetryMessage.value = false;
+    }, 3000);
     isRelaying.value = false;
     relayRetryCount.value = 0;
   }
@@ -458,6 +471,31 @@ function disconnect() {
 </script>
 
 <style lang="less" scoped>
+.retry-message {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: v-bind('isDarkTheme ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.9)"');
+  color: v-bind('isDarkTheme ? "#fff" : "#333"');
+  padding: 10px 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .dy-form {
   width: 100%;
   height: 100%;
