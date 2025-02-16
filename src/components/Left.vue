@@ -8,18 +8,39 @@
           error: rnFlag
         }">
         <div class="dy-room-tag">房间号</div>
-        <input v-model="roomNum" type="text" class="dy-room-input" placeholder="请输入12位房间号" />
+        <input
+          v-model="roomNum"
+          type="text"
+          class="dy-room-input"
+          placeholder="请输入12位房间号"
+          :disabled="connectCode === 200"
+        />
         <button 
-          class="dy-room-btn" 
-          @click="gotoConnect"
+          class="dy-room-btn"
+          :class="{ 'disconnect': connectCode === 200 }"
+          @click="connectCode === 200 ? disconnect() : gotoConnect()"
           :disabled="isConnecting"
-        >{{ isConnecting ? '连接中...' : '连接' }}</button>
+        >
+          {{ isConnecting ? '连接中...' : (connectCode === 200 ? '断开连接' : '连接') }}
+        </button>
       </div>
       <div class="dy-title">转发信息</div>
       <div class="dy-room-box">
         <div class="dy-room-tag">ws地址</div>
-        <input v-model="relayWs" type="text" class="dy-room-input" placeholder="请输入ws/wss协议链接" />
-        <button class="dy-room-btn" @click="relay">转发</button>
+        <input 
+          v-model="relayWs" 
+          type="text" 
+          class="dy-room-input" 
+          placeholder="请输入ws/wss协议链接"
+          :disabled="isRelaying" 
+        />
+        <button 
+          class="dy-room-btn"
+          :class="{ 'relaying': isRelaying }"
+          @click="isRelaying ? stopRelay() : relay()"
+        >
+          {{ isRelaying ? '停止转发' : '转发' }}
+        </button>
       </div>
       <div class="dy-title">
         <span>房间信息</span>
@@ -67,7 +88,8 @@ import { ref, inject, onMounted, type Ref } from 'vue';
 // 房间号
 const roomNum = ref<string | null>(null);
 
-const relayWs = ref<string>('');
+// 将 relayWs 的默认值设置为 'ws://localhost:3001'
+const relayWs = ref<string>('ws://localhost:3001');
 // 弹幕列表
 const chatList = inject<Mess[]>('chatList');
 // 点赞送礼榜
@@ -113,6 +135,12 @@ const isConnecting = ref(false);
 // 在 ref 声明区域添加重试次数计数器
 const retryCount = ref(0);
 const MAX_RETRIES = 2; // 最大重试次数
+
+// 在 script setup 中添加 client 变量
+let dyClient: any = null;
+
+// 添加转发状态标志
+const isRelaying = ref(false);
 
 onMounted(() => {
   messListDom = document.getElementById('mess-list');
@@ -176,7 +204,22 @@ function gotoConnect() {
  * 转发消息
  */
 function relay() {
+  isRelaying.value = true;
   relaySocket = new WebSocket(relayWs.value);
+  
+  relaySocket.onopen = () => {
+    console.log('转发WebSocket连接成功');
+  };
+  
+  relaySocket.onerror = (error: Event) => {
+    console.error('转发WebSocket连接错误:', error);
+    isRelaying.value = false;
+  };
+  
+  relaySocket.onclose = () => {
+    console.log('转发WebSocket连接已关闭');
+    isRelaying.value = false;
+  };
 }
 
 /**
@@ -189,9 +232,9 @@ function connection(roomId: string, uniqueId: string) {
   let now = Date.now();
   let wsUrl = `wss://webcast3-ws-web-hl.douyin.com/webcast/im/push/v2/?app_name=douyin_web&version_code=180800&webcast_sdk_version=1.3.0&update_version_code=1.3.0&compress=gzip&internal_ext=internal_src:dim|wss_push_room_id:${roomId}|wss_push_did:${uniqueId}|fetch_time:${now}|seq:1|wss_info:0-${now}-0-0&cursor=t-${now}_r-1_d-1_u-1_h-1&host=https://live.douyin.com&aid=6383&live_id=1&did_rule=3&debug=false&maxCacheMessageNumber=20&endpoint=live_pc&support_wrds=1&im_path=/webcast/im/fetch/&user_unique_id=${uniqueId}&device_platform=web&cookie_enabled=true&screen_width=1920&screen_height=1080&browser_language=zh-CN&browser_platform=Win32&browser_name=Mozilla&browser_version=5.0%20(Windows%20NT%2010.0;%20Win64;%20x64)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)%20Chrome/111.0.0.0%20Safari/537.36%20Edg/111.0.1661.62&browser_online=true&tz_name=Asia/Shanghai&identity=audience&room_id=${roomId}&heartbeatDuration=0&signature=${sign}`;
   // 服务地址 发送
-  const client = new DyClient();
-  client.init(wsUrl);
-  client.accept = (message: proto.Message) => {
+  dyClient = new DyClient();
+  dyClient.init(wsUrl);
+  dyClient.accept = (message: proto.Message) => {
     if (message) {
       let m = handleMessage(message);
       handleChat(m);
@@ -199,7 +242,7 @@ function connection(roomId: string, uniqueId: string) {
       relayMess(m);
     }
   };
-  client.onOff = (flag: boolean) => {
+  dyClient.onOff = (flag: boolean) => {
     if (flag) {
       connectCode.value = 200;
     } else {
@@ -259,7 +302,12 @@ function renewPos() {
  */
 function relayMess(data: Mess) {
   if (!data.type) return;
-  relaySocket && relaySocket?.send(JSON.stringify(data));
+  // 检查WebSocket是否已连接
+  if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
+    relaySocket.send(JSON.stringify(data));
+  } else {
+    console.log('WebSocket未连接，无法发送消息');
+  }
 }
 
 // 添加处理连接错误的函数
@@ -275,6 +323,43 @@ function handleConnectionError() {
     connectCode.value = 400;
     retryCount.value = 0; // 重置重试计数，为下次连接做准备
   }
+}
+
+// 添加停止转发函数
+function stopRelay() {
+  if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
+    relaySocket.close();
+    relaySocket = null;
+  }
+  isRelaying.value = false;
+}
+
+// 修改断开连接函数，确保同时停止转发
+function disconnect() {
+  if (dyClient) {
+    try {
+      // 清理资源并关闭连接
+      dyClient.destroy();
+      dyClient = null;
+    } catch (error) {
+      console.error('断开连接时发生错误:', error);
+    }
+  }
+  
+  // 同时停止转发
+  stopRelay();
+  
+  // 重置所有状态
+  connectCode.value = 100;
+  isConnecting.value = false;
+  roomAvatar.value = '';
+  roomTitle.value = null;
+  memberCount.value = 0;
+  likeCount.value = 0;
+  followCount.value = 0;
+  totalUserCount.value = 0;
+  if (chatList) chatList.length = 0;
+  if (rankList) rankList.length = 0;
 }
 </script>
 
@@ -342,6 +427,10 @@ function handleConnectionError() {
       border: none;
       padding: 0;
       background-color: transparent;
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
     }
     .dy-room-btn {
       cursor: pointer;
@@ -358,6 +447,20 @@ function handleConnectionError() {
       &:disabled {
         cursor: not-allowed;
         opacity: 0.6;
+      }
+      &.disconnect {
+        background-color: v-bind('isDarkTheme ? "#f44336" : "#ff6b6b"');
+        
+        &:hover {
+          background-color: v-bind('isDarkTheme ? "#d32f2f" : "#ff5252"');
+        }
+      }
+      &.relaying {
+        background-color: v-bind('isDarkTheme ? "#ff9800" : "#ffa726"');
+        
+        &:hover {
+          background-color: v-bind('isDarkTheme ? "#f57c00" : "#ff9100"');
+        }
       }
     }
   }

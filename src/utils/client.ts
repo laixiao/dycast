@@ -34,6 +34,11 @@ class Client {
   ready() {
     return this.socket?.readyState;
   }
+  close() {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.close();
+    }
+  }
 }
 
 /**
@@ -148,6 +153,20 @@ export class DyClient {
     this.pingTimer = setTimeout(() => {
       this.pingStarted && this.ping();
     }, t);
+  }
+
+  destroy() {
+    if (this.pingTimer) {
+      clearTimeout(this.pingTimer);
+      this.pingTimer = undefined;
+    }
+    
+    this.pingStarted = false;
+    
+    if (this.client) {
+      this.client.close();
+      this.client = undefined;
+    }
   }
 }
 
