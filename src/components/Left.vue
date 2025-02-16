@@ -142,8 +142,31 @@ let dyClient: any = null;
 // 添加转发状态标志
 const isRelaying = ref(false);
 
+// 添加重连相关的常量和变量
+const MAX_RELAY_RETRIES = 3; // 最大重连次数
+const RELAY_RETRY_DELAY = 3000; // 重连延迟时间（毫秒）
+const relayRetryCount = ref(0); // 重连计数器
+
+// 修改获取 URL 参数的函数，添加 roomId 参数的获取
+function getUrlParam(name: string): string | null {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
+}
+
+// 添加 roomId ref 的获取
+const urlRoomId = getUrlParam('roomId');
+
+// 添加 productId ref
+const productId = ref<string | null>(getUrlParam('productId'));
+
 onMounted(() => {
   messListDom = document.getElementById('mess-list');
+  
+  // 如果 URL 中存在 roomId，自动填入并连接
+  if (urlRoomId) {
+    roomNum.value = urlRoomId;
+    gotoConnect();
+  }
 });
 
 /**
@@ -165,6 +188,10 @@ function gotoConnect() {
   
   // 设置连接状态
   isConnecting.value = true;
+
+  // 清空聊天列表和排行榜
+  if (chatList) chatList.length = 0;
+  if (rankList) rankList.length = 0;
 
   // 创建一个隐藏的 iframe
   const iframe = document.createElement('iframe');
@@ -204,22 +231,48 @@ function gotoConnect() {
  * 转发消息
  */
 function relay() {
+  if (!relayWs.value) {
+    console.error('转发地址不能为空');
+    return;
+  }
+
   isRelaying.value = true;
-  relaySocket = new WebSocket(relayWs.value);
   
-  relaySocket.onopen = () => {
-    console.log('转发WebSocket连接成功');
-  };
+  // 构建 WebSocket URL
+  let wsUrl = relayWs.value;
+  if (productId.value) {
+    const separator = wsUrl.includes('?') ? '&' : '?';
+    wsUrl = `${wsUrl}${separator}productId=${productId.value}&type=danmu`;
+  }
   
-  relaySocket.onerror = (error: Event) => {
-    console.error('转发WebSocket连接错误:', error);
-    isRelaying.value = false;
-  };
-  
-  relaySocket.onclose = () => {
-    console.log('转发WebSocket连接已关闭');
-    isRelaying.value = false;
-  };
+  try {
+    relaySocket = new WebSocket(wsUrl);
+    
+    relaySocket.onopen = () => {
+      console.log('转发WebSocket连接成功');
+      // 连接成功时重置重试计数
+      relayRetryCount.value = 0;
+    };
+    
+    relaySocket.onerror = (error: Event) => {
+      console.error('转发WebSocket连接错误:', error);
+      handleRelayError();
+    };
+    
+    relaySocket.onclose = (event: CloseEvent) => {
+      console.log('转发WebSocket连接已关闭', event.code, event.reason);
+      // 只有在isRelaying为true时才尝试重连
+      // 排除主动关闭的情况（代码1000表示正常关闭）
+      if (isRelaying.value && event.code !== 1000) {
+        handleRelayError();
+      } else {
+        isRelaying.value = false;
+      }
+    };
+  } catch (error) {
+    console.error('创建WebSocket连接失败:', error);
+    handleRelayError();
+  }
 }
 
 /**
@@ -245,6 +298,10 @@ function connection(roomId: string, uniqueId: string) {
   dyClient.onOff = (flag: boolean) => {
     if (flag) {
       connectCode.value = 200;
+      // 连接成功后，如果有设置转发地址且未在转发中，则自动开始转发
+      if (relayWs.value && !isRelaying.value) {
+        relay();
+      }
     } else {
       connectCode.value = 400;
     }
@@ -325,16 +382,55 @@ function handleConnectionError() {
   }
 }
 
-// 添加停止转发函数
-function stopRelay() {
-  if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
-    relaySocket.close();
-    relaySocket = null;
+/**
+ * 处理转发错误和重连
+ */
+function handleRelayError() {
+  if (relayRetryCount.value < MAX_RELAY_RETRIES) {
+    relayRetryCount.value++;
+    console.log(`转发连接断开，${RELAY_RETRY_DELAY/1000}秒后进行第 ${relayRetryCount.value} 次重试...`);
+    
+    // 确保旧的连接被清理
+    if (relaySocket) {
+      try {
+        relaySocket.close();
+      } catch (e) {
+        // 忽略关闭错误
+      }
+      relaySocket = null;
+    }
+    
+    // 延迟重连
+    setTimeout(() => {
+      // 确保在重连时仍处于应该转发的状态
+      if (isRelaying.value && connectCode.value === 200) {
+        relay();
+      }
+    }, RELAY_RETRY_DELAY);
+  } else {
+    console.error('转发重连次数已达上限，停止重连');
+    isRelaying.value = false;
+    relayRetryCount.value = 0;
   }
-  isRelaying.value = false;
 }
 
-// 修改断开连接函数，确保同时停止转发
+// 修改 stopRelay 函数，确保清理状态
+function stopRelay() {
+  isRelaying.value = false;
+  relayRetryCount.value = 0;
+  
+  if (relaySocket) {
+    try {
+      // 使用正常关闭代码1000
+      relaySocket.close(1000, '用户主动停止转发');
+      relaySocket = null;
+    } catch (error) {
+      console.error('关闭转发连接时发生错误:', error);
+    }
+  }
+}
+
+// 修改断开连接函数，移除清空列表的逻辑
 function disconnect() {
   if (dyClient) {
     try {
@@ -358,8 +454,6 @@ function disconnect() {
   likeCount.value = 0;
   followCount.value = 0;
   totalUserCount.value = 0;
-  if (chatList) chatList.length = 0;
-  if (rankList) rankList.length = 0;
 }
 </script>
 
