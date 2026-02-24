@@ -380,6 +380,10 @@ function handleConnectionError() {
     retryCount.value++;
     showRetryMessage.value = true;
     retryMessage.value = `连接失败，正在进行第 ${retryCount.value} 次重试...`;
+    // 添加3秒后自动关闭消息提示
+    setTimeout(() => {
+      showRetryMessage.value = false;
+    }, 3000);
     setTimeout(() => {
       gotoConnect();
     }, 2000);
@@ -400,6 +404,10 @@ function handleRelayError() {
     relayRetryCount.value++;
     showRetryMessage.value = true;
     retryMessage.value = `转发连接断开，${RELAY_RETRY_DELAY/1000}秒后进行第 ${relayRetryCount.value} 次重试...`;
+    // 添加3秒后自动关闭消息提示
+    setTimeout(() => {
+      showRetryMessage.value = false;
+    }, 3000);
     
     if (relaySocket) {
       try {
